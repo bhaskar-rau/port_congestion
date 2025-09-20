@@ -28,4 +28,7 @@ public interface PortCongestionService {
 
     // Count by situation type
     int countBySituationType(SituationType type);
+
+
+
 }

@@ -18,22 +18,18 @@ public class PortCongestionController {
 
     private final PortCongestionService service;
 
-@PostMapping
-public ResponseEntity<PortCongestionData> save(
-        @RequestBody PortCongestionData data,
-        @RequestHeader(name = "X-User-Timezone", required = false) String userTimezone) {
-    
-    log.info("API: Saving PortCongestionData {}", data);
+    /**
+     * Save or update PortCongestionData.
+     * All datetime fields are converted to UTC in the service.
+     */
+    @PostMapping
+    public ResponseEntity<PortCongestionData> save(@RequestBody PortCongestionData data) {
+        log.info("API: Saving PortCongestionData {}", data);
 
-    // Default to UTC if not provided
-    if (userTimezone == null || userTimezone.isBlank()) {
-        userTimezone = "UTC";
+        // Save using UTC
+        PortCongestionData saved = service.save(data, "UTC");
+        return ResponseEntity.ok(saved);
     }
-
-    PortCongestionData saved = service.save(data, userTimezone);
-    return ResponseEntity.ok(saved);
-}
-
 
     @GetMapping("/{id}")
     public ResponseEntity<PortCongestionData> findById(@PathVariable Integer id) {
@@ -42,35 +38,29 @@ public ResponseEntity<PortCongestionData> save(
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ Find All
     @GetMapping
     public ResponseEntity<List<PortCongestionData>> findAll() {
         return ResponseEntity.ok(service.findAll());
     }
 
-    // ✅ Find by SituationType (enum)
     @GetMapping("/situation/{type}")
     public ResponseEntity<List<PortCongestionData>> findBySituationType(@PathVariable SituationType type) {
         return ResponseEntity.ok(service.findBySituationType(type));
     }
 
-    // ✅ Count by SituationType
     @GetMapping("/count/{type}")
     public ResponseEntity<Integer> countBySituationType(@PathVariable SituationType type) {
         return ResponseEntity.ok(service.countBySituationType(type));
     }
 
-    // ✅ Exists by ID
     @GetMapping("/exists/{id}")
     public ResponseEntity<Boolean> existsById(@PathVariable Integer id) {
         return ResponseEntity.ok(service.existsById(id));
     }
 
-    // ✅ Delete by ID
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteById(@PathVariable Integer id) {
         service.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 }
-

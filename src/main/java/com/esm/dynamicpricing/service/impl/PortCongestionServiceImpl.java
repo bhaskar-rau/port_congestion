@@ -3,19 +3,18 @@ package com.esm.dynamicpricing.service.impl;
 import com.esm.dynamicpricing.exception.ValidationException;
 import com.esm.dynamicpricing.model.PortCongestionData;
 import com.esm.dynamicpricing.model.SituationType;
-import com.esm.dynamicpricing.model.PortEventFieldConfig;
 import com.esm.dynamicpricing.repository.PortCongestionRepository;
-import com.esm.dynamicpricing.repository.PortEventFieldConfigRepository;
 import com.esm.dynamicpricing.service.EventDateTimeService;
 import com.esm.dynamicpricing.service.PortCongestionService;
+import com.esm.dynamicpricing.util.PortCongestionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -25,84 +24,56 @@ import java.util.Optional;
 public class PortCongestionServiceImpl implements PortCongestionService {
 
     private final PortCongestionRepository repository;
-    private final PortEventFieldConfigRepository configRepository;
     private final EventDateTimeService dateTimeService;
+    private final PortCongestionValidator validator;
 
-    @Override
-    public PortCongestionData save(PortCongestionData data, String userTimezone) {
-        log.info("Saving PortCongestionData: {}", data);
+   @Override
+public PortCongestionData save(PortCongestionData data, String userTimezone) {
+    log.info("Saving PortCongestionData: {}", data);
 
-        // Validate situationType
-        SituationType type = data.getSituationType();
-        if (type == null) {
-            throw new ValidationException("SituationType is required");
-        }
-
-        // Fetch field configs for this situationType
-        List<PortEventFieldConfig> configs = configRepository
-                .findByEventTypeOrderByDisplayOrder(type.name());
-
-        if (configs.isEmpty()) {
-            throw new ValidationException("No field configuration found for situationType: " + type);
-        }
-
-        // Process eventDetails with validation
-        Map<String, Object> processedEventDetails = processEventDetails(
-                data.getDetails(), configs, userTimezone);
-        data.setDetails(processedEventDetails);
-
-        return repository.save(data);
-    }
-
-    private Map<String, Object> processEventDetails(
-            Map<String, Object> inputDetails,
-            List<PortEventFieldConfig> configs,
-            String userTimezone) {
-
-        Map<String, Object> processed = new HashMap<>();
-
-        for (PortEventFieldConfig config : configs) {
-            String fieldName = config.getFieldName();
-            Object value = inputDetails.get(fieldName);
-
-            // Validate required fields
-            if (Boolean.TRUE.equals(config.getIsRequired()) &&
-                    (value == null || value.toString().trim().isEmpty())) {
-                throw new ValidationException("Required field missing: " + fieldName);
-            }
-
-            if (value != null) {
-                switch (config.getFieldType()) {
-                    case DATETIME:
-                        dateTimeService.storeDateTimeField(processed, fieldName,
-                                value.toString(), userTimezone);
-                        break;
-                    case NUMBER:
-                        processed.put(fieldName, parseNumber(value));
-                        break;
-                    case BOOLEAN:
-                        processed.put(fieldName, Boolean.valueOf(value.toString()));
-                        break;
-                    default:
-                        processed.put(fieldName, value.toString());
-                }
-            }
-        }
-
-        return processed;
-    }
-
-    private Number parseNumber(Object value) {
+    try {
+        // ---------- 1. Validate required fields based on situationType ----------
         try {
-            if (value instanceof Number) {
-                return (Number) value;
-            } else {
-                return Double.parseDouble(value.toString());
-            }
-        } catch (NumberFormatException e) {
-            throw new ValidationException("Invalid number format: " + value);
+            validator.validate(data);
+        } catch (IllegalArgumentException iae) {
+            // Wrap validator's IllegalArgumentException into ValidationException
+            throw new ValidationException(iae.getMessage(), iae);
         }
+
+        // ---------- 2. Convert datetime fields to UTC ----------
+        if (data.getStartEvent() != null) {
+            data.setStartEvent(dateTimeService.toUtc(data.getStartEvent(), userTimezone));
+        }
+        if (data.getEndEvent() != null) {
+            data.setEndEvent(dateTimeService.toUtc(data.getEndEvent(), userTimezone));
+        }
+        if (data.getStartEffected() != null) {
+            data.setStartEffected(dateTimeService.toUtc(data.getStartEffected(), userTimezone));
+        }
+        if (data.getEndEffected() != null) {
+            data.setEndEffected(dateTimeService.toUtc(data.getEndEffected(), userTimezone));
+        }
+
+        // ---------- 3. Save entity ----------
+        return repository.save(data);
+
+    } catch (ValidationException ve) {
+        // Gracefully handle validation errors
+        log.warn("Validation failed for PortCongestionData: {}", data, ve);
+        throw ve; // will map to HTTP 400 in GlobalExceptionHandler
+
+    } catch (DataIntegrityViolationException dive) {
+        // DB constraint violation
+        log.error("Database constraint violation while saving: {}", data, dive);
+        throw new RuntimeException("Database constraint violation", dive);
+
+    } catch (Exception e) {
+        // Other unexpected exceptions
+        log.error("Unexpected error saving PortCongestionData: {}", data, e);
+        throw new RuntimeException("Error saving port congestion data", e);
     }
+}
+
 
     @Override
     public Optional<PortCongestionData> findById(Integer id) {
