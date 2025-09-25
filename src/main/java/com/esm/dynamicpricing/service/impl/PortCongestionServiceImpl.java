@@ -32,15 +32,12 @@ public PortCongestionData save(PortCongestionData data, String userTimezone) {
     log.info("Saving PortCongestionData: {}", data);
 
     try {
-        // ---------- 1. Validate required fields based on situationType ----------
         try {
             validator.validate(data);
         } catch (IllegalArgumentException iae) {
-            // Wrap validator's IllegalArgumentException into ValidationException
             throw new ValidationException(iae.getMessage(), iae);
         }
 
-        // ---------- 2. Convert datetime fields to UTC ----------
         if (data.getStartEvent() != null) {
             data.setStartEvent(dateTimeService.toUtc(data.getStartEvent(), userTimezone));
         }
@@ -54,21 +51,17 @@ public PortCongestionData save(PortCongestionData data, String userTimezone) {
             data.setEndEffected(dateTimeService.toUtc(data.getEndEffected(), userTimezone));
         }
 
-        // ---------- 3. Save entity ----------
         return repository.save(data);
 
     } catch (ValidationException ve) {
-        // Gracefully handle validation errors
         log.warn("Validation failed for PortCongestionData: {}", data, ve);
-        throw ve; // will map to HTTP 400 in GlobalExceptionHandler
+        throw ve; 
 
     } catch (DataIntegrityViolationException dive) {
-        // DB constraint violation
         log.error("Database constraint violation while saving: {}", data, dive);
         throw new RuntimeException("Database constraint violation", dive);
 
     } catch (Exception e) {
-        // Other unexpected exceptions
         log.error("Unexpected error saving PortCongestionData: {}", data, e);
         throw new RuntimeException("Error saving port congestion data", e);
     }

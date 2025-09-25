@@ -18,15 +18,11 @@ public class PortCongestionController {
 
     private final PortCongestionService service;
 
-    /**
-     * Save or update PortCongestionData.
-     * All datetime fields are converted to UTC in the service.
-     */
+
     @PostMapping
     public ResponseEntity<PortCongestionData> save(@RequestBody PortCongestionData data) {
         log.info("API: Saving PortCongestionData {}", data);
 
-        // Save using UTC
         PortCongestionData saved = service.save(data, "UTC");
         return ResponseEntity.ok(saved);
     }

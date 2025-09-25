@@ -14,8 +14,7 @@ public class EventDateTimeServiceImpl implements EventDateTimeService {
     public OffsetDateTime toUtc(OffsetDateTime input, String userTimezone) {
         if (input == null) return null;
 
-        ZoneId userZone = ZoneId.of(userTimezone);  // e.g., "Asia/Bangkok"
-        // Interpret the input as already in user's zone, then shift to UTC
+        ZoneId userZone = ZoneId.of(userTimezone);  
         ZonedDateTime zoned = input.atZoneSameInstant(userZone);
         return zoned.withZoneSameInstant(ZoneId.of("UTC")).toOffsetDateTime();
     }
@@ -25,7 +24,6 @@ public class EventDateTimeServiceImpl implements EventDateTimeService {
         if (input == null) return null;
 
         ZoneId userZone = ZoneId.of(userTimezone);
-        // Input is UTC from DB, convert to user timezone
         return input.atZoneSameInstant(ZoneId.of("UTC"))
                     .withZoneSameInstant(userZone)
                     .toOffsetDateTime();
