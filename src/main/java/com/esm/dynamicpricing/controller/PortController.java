@@ -11,6 +11,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/ports")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*") 
 public class PortController {
 
     private final CamPortRepository camPortRepository;
